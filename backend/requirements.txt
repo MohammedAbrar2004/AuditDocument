@@ -1,0 +1,21 @@
+# Pinned to what's already installed and verified in the `audit` conda env
+# (Python 3.11.15). Phase 0 confirmed all of these are present and working —
+# this file documents the env, it is not a fresh install list.
+#
+# torch is a cu132 build, not on plain PyPI:
+#   pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cu132
+torch==2.13.0
+PyMuPDF==1.28.0
+pdfplumber==0.11.4
+sentence-transformers==5.6.0
+transformers==5.13.1
+rank-bm25==0.2.2
+fastapi==0.115.6
+uvicorn==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-multipart==0.0.32
+numpy==2.2.1
+scipy==1.17.1
+scikit-learn==1.9.0
+pytest==8.3.3
