@@ -88,6 +88,9 @@ phases/v2_phase2.md.
 
 ## Phase 3 — Embed + index
 
+**Status: BUILT.** Full plan, grounding pass, and build report:
+`phases/v2_phase3.md`.
+
 **Does:** parses the checklists, then builds both search structures.
 
 **How:**
@@ -102,7 +105,7 @@ phases/v2_phase2.md.
   expected number.**
 
 **Then:**
-- Embed every chunk and every checklist item with `BAAI/bge-large-en-v1.5` on GPU.
+- Embed every chunk and every checklist item with `BAAI/bge-m3` on GPU.
 - Build the BM25 index over chunk text.
 
 **Artifact:** `data/artifacts/phase3/` — parsed checklist items, chunk vectors, item

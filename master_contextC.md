@@ -320,6 +320,16 @@ document:**
   `5` for both "Terms and Definitions" and "Qualification Requirement"; the first
   keeps `5`, the second becomes `5#2`). Not a restart, not a new namespace — there is no
   more-correct number to synthesize, so the id is disambiguated directly.
+- **`#2`, `#3`, ... suffix anchored to the nearest preceding numbered item, for real
+  content that carries no source number at all** — confirmed real, checklist parsing
+  (Phase 3 build report, `AUDIT_CHECKLIST_AEC.pdf`'s "8. Consistency of PCN
+  Examinations" section): 6 real audit questions follow item `4.2.5.2` with no number
+  whatsoever (the source simply stops numbering mid-section). Same suffix mechanism as
+  above, different origin — not a duplicated number, an absent one — so the anchor is
+  the last real item before them (`4.2.5.2`), producing `4.2.5.2#2` … `4.2.5.2#7`.
+  Anchoring to the nearest numbered item (never to a heading) is deliberate: every `#N`
+  precedent in this project anchors to a leaf item, and a heading anchor would be an
+  uninvented third scheme.
 
 **`clause_no` is an opaque unique string, not a bare dotted number.** Any phase
 matching, sorting, or displaying by `clause_no` must treat it as an id, not parse it
@@ -334,8 +344,8 @@ ranked lists.
 
 | File | Items |
 |---|---|
-| `AUDIT_CHECKLIST_AQB.pdf` | ~159 |
-| `AUDIT_CHECKLIST_AEC.pdf` | ~52 |
+| `AUDIT_CHECKLIST_AQB.pdf` | 158 |
+| `AUDIT_CHECKLIST_AEC.pdf` | 54 |
 
 **The checklists have the same structural disease as the QMS.** Parent headings and leaf
 items look alike. IDs go up to four levels (`4.2.1.3`). Numbering has gaps.
@@ -381,7 +391,7 @@ Phase N−1's artifact. **Never re-parse the PDF.**
 - **Frontend:** Vite + React + TypeScript, port 5173
 - **PDF text + font + geometry:** PyMuPDF (fitz)
 - **PDF tables:** pdfplumber
-- **Embeddings:** `BAAI/bge-large-en-v1.5`
+- **Embeddings:** `BAAI/bge-m3`
 - **Keyword:** BM25
 - **Python:** 3.11, conda environment named **`audit`**
 - **GPU:** RTX 4050, cu132 torch, CUDA confirmed working
@@ -389,7 +399,8 @@ Phase N−1's artifact. **Never re-parse the PDF.**
 The `audit` env may already have dependencies. **Install anything new freely — no need
 to be stingy.**
 
-BGE's 512-token limit is not a problem. Chunks are small by design. Do not swap models.
+The model is BGE-M3, 8192-token context. Every chunk embeds whole, no truncation.
+Dimension is 1024.
 
 ## No eval phase
 
