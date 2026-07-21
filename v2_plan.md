@@ -47,6 +47,9 @@ removal log.
 
 ## Phase 2 — Chunk
 
+**Status: BUILT.** Full plan, review rounds, fix rounds, and build report:
+phases/v2_phase2.md.
+
 **Does:** turns Phase 1's blocks into the final chunk set.
 
 **How:**

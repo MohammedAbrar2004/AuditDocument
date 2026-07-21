@@ -307,6 +307,24 @@ Annex B: Specific Terms of Reference for Training & Examination Staff
 `[Annex B hdg][1.0 hdg][1.0 body]` → clause id `Annex B/1.0`. Document-level `1 SCOPE`
 has no Annex ancestor → id stays `1`. **Unique, no collision, no special rule needed.**
 
+**Uniqueness is enforced two other ways, confirmed real in the built corpus (Phase 2
+build report, fix round 2026-07-21b) — not hypothetical, not special-cased per
+document:**
+- **`Annex X/` prefix for a numbering restart under a heading that isn't literally
+  spelled "Annex"** — e.g. `AEI-WI-T-05B`'s `ANNEXURE – I` restarts a mini-procedure at
+  `1`, producing `Annex I/1`, `Annex I/2`, etc., distinct from the document's own plain
+  `1`, `2`. Same mechanism as `Annex B/1.0` above, just a different spelling of the
+  boundary heading.
+- **`#2`, `#3`, ... suffix for a genuine in-sequence duplicate** — a real source typo
+  where the same number is reused rather than incremented (e.g. `AEI-WI-T-01B` reuses
+  `5` for both "Terms and Definitions" and "Qualification Requirement"; the first
+  keeps `5`, the second becomes `5#2`). Not a restart, not a new namespace — there is no
+  more-correct number to synthesize, so the id is disambiguated directly.
+
+**`clause_no` is an opaque unique string, not a bare dotted number.** Any phase
+matching, sorting, or displaying by `clause_no` must treat it as an id, not parse it
+as pure `\d+(\.\d+)*` — it may carry an `Annex X/` prefix or a `#N` suffix.
+
 ---
 
 ## The checklists
