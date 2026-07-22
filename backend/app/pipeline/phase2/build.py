@@ -34,8 +34,19 @@ def _dedup_clause_nos(out_chunks: list[dict]) -> None:
             c["clause_no"] = f"{clause_no}#{seen[clause_no]}"
 
 
-def build_subdocument_chunks(subdoc: dict) -> tuple[list[dict], dict]:
+def build_subdocument_chunks(subdoc: dict, chunk_id_key: str | None = None) -> tuple[list[dict], dict]:
+    """`chunk_id_key` defaults to `doc_id` -- identical to every existing
+    call site's behavior. `build_artifact` below passes a `#N`-suffixed key
+    only when this subdocument's `doc_id` repeats across the corpus
+    (confirmed real and singular: AEI-QP-T-03B is reused for two distinct
+    real documents, the AEC and AQB checklists -- a source-file fact, not a
+    parsing defect). `doc_id` itself, on every emitted chunk, always stays
+    the true, unsuffixed source doc_id -- only the chunk_id join key is
+    disambiguated, since chunk_id (not doc_id) is what downstream phases
+    rely on for uniqueness (Phase 3's assert_chunk_id_uniqueness).
+    """
     doc_id = subdoc["doc_id"]
+    id_key = chunk_id_key if chunk_id_key is not None else doc_id
     rows = flatten_blocks_to_rows(subdoc["blocks"])
     chunks, events, fate, trailing_absorbed = build_chunks_for_subdocument(
         rows, subdoc["tables"], doc_name=subdoc["doc_name"]
@@ -44,7 +55,7 @@ def build_subdocument_chunks(subdoc: dict) -> tuple[list[dict], dict]:
     out_chunks = []
     for seq, c in enumerate(chunks, start=1):
         out_chunks.append({
-            "chunk_id": f"{doc_id}__c{seq:03d}",
+            "chunk_id": f"{id_key}__c{seq:03d}",
             "doc_id": doc_id,
             "doc_name": subdoc["doc_name"],
             "clause_no": c["clause_no"],
@@ -76,8 +87,17 @@ def build_subdocument_chunks(subdoc: dict) -> tuple[list[dict], dict]:
 def build_artifact(phase1_artifact: dict) -> tuple[dict, list[dict]]:
     all_chunks = []
     all_debug = []
+    doc_id_occurrence: dict[str, int] = {}
     for subdoc in phase1_artifact["subdocuments"]:
-        chunks, debug = build_subdocument_chunks(subdoc)
+        doc_id = subdoc["doc_id"]
+        doc_id_occurrence[doc_id] = doc_id_occurrence.get(doc_id, 0) + 1
+        n = doc_id_occurrence[doc_id]
+        # First occurrence of any doc_id is unchanged (id_key == doc_id) --
+        # only a real repeat gets a #N-suffixed chunk_id key. Confirmed the
+        # only repeat in the real corpus is AEI-QP-T-03B (see build.py's
+        # docstring / this fix's own verification).
+        chunk_id_key = doc_id if n == 1 else f"{doc_id}#{n}"
+        chunks, debug = build_subdocument_chunks(subdoc, chunk_id_key=chunk_id_key)
         all_chunks.extend(chunks)
         all_debug.append(debug)
 

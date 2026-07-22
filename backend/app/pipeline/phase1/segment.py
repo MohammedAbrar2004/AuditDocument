@@ -9,6 +9,16 @@ the parsed doc_id OR doc_name differs from the currently-open subdocument's
 -- not doc_id alone. Grounded necessity: AEI-QP-T-03B reuses the identical
 doc_id for two different real documents (the AEC and AQB checklists, a
 mistake in the source file); a doc_id-only rule silently merges them.
+
+`page_doc_id` alone is NOT enough to group blocks/tables by subdocument
+downstream (build.py) -- it stores only the doc_id *string*, so two
+subdocuments sharing one doc_id (AEI-QP-T-03B, above) collapse onto the same
+key and silently share every block and table between them. Real bug, found
+by reproducing the known AEI-QP-T-03B__c001 chunk_id collision end to end:
+both instances ended up with byte-identical block lists. `page_subdoc_index`
+carries the true per-transition identity (a plain incrementing position in
+`subdocuments`) precisely so build.py can group by *instance*, not by a
+string that isn't always unique.
 """
 from .header import detect_header
 
@@ -18,11 +28,13 @@ def segment_pdf(pdfplumber_pdf, fitz_doc) -> dict:
 
     page_header = {}          # pdf_page_no -> header dict or None
     page_doc_id = {}          # pdf_page_no -> doc_id (carried forward)
+    page_subdoc_index = {}    # pdf_page_no -> index into `subdocuments` below
     header_absent_continuation_pages = []
     transitions = []          # list of (pdf_page_no, header_dict)
 
     current_doc_id = None
     current_doc_name = None
+    current_subdoc_index = -1
 
     for pno0 in range(page_count):
         pdf_page_no = pno0 + 1
@@ -39,10 +51,12 @@ def segment_pdf(pdfplumber_pdf, fitz_doc) -> dict:
                 transitions.append((pdf_page_no, header))
                 current_doc_id = header["doc_id"]
                 current_doc_name = header["doc_name"]
+                current_subdoc_index += 1
         else:
             header_absent_continuation_pages.append(pdf_page_no)
 
         page_doc_id[pdf_page_no] = current_doc_id
+        page_subdoc_index[pdf_page_no] = current_subdoc_index
 
     subdocuments = []
     for i, (start_page, header) in enumerate(transitions):
@@ -65,6 +79,7 @@ def segment_pdf(pdfplumber_pdf, fitz_doc) -> dict:
     return {
         "page_header": page_header,
         "page_doc_id": page_doc_id,
+        "page_subdoc_index": page_subdoc_index,
         "subdocuments": subdocuments,
         "extraction_report": {
             "subdocument_count": len(subdocuments),

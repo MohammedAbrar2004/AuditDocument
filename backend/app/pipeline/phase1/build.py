@@ -15,8 +15,8 @@ from .rules import empty_table_verdict, is_diagram_only_page
 from .segment import segment_pdf
 
 
-def _table_owner_doc_id(table: dict, page_doc_id: dict) -> str:
-    return page_doc_id.get(table["pages"][0])
+def _table_owner_index(table: dict, page_subdoc_index: dict) -> int:
+    return page_subdoc_index.get(table["pages"][0])
 
 
 def build_artifact(pdf_path, source_pdf_name: str) -> dict:
@@ -28,6 +28,7 @@ def build_artifact(pdf_path, source_pdf_name: str) -> dict:
         seg = segment_pdf(pdfplumber_pdf, fitz_doc)
         page_header = seg["page_header"]
         page_doc_id = seg["page_doc_id"]
+        page_subdoc_index = seg["page_subdoc_index"]
 
         raw_tables = tables_mod.extract_raw_tables_per_page(pdfplumber_pdf, fitz_doc)
         raw_tables_by_page = defaultdict(list)
@@ -38,11 +39,18 @@ def build_artifact(pdf_path, source_pdf_name: str) -> dict:
         filtered_tables = [tables_mod.apply_min_width_filter(t) for t in stitched]
 
         removal_log = []
-        tables_by_doc_id = defaultdict(list)
+        # Grouped by subdocument *instance index*, not doc_id string -- a
+        # doc_id can legitimately repeat (AEI-QP-T-03B, segment.py's
+        # docstring), and grouping by the bare string silently merged two
+        # real subdocuments' tables into one. table_id still reads the real
+        # doc_id for its own naming (owner_doc_id below), just not for
+        # grouping.
+        tables_by_index = defaultdict(list)
         table_counters = defaultdict(int)
 
         for ft in filtered_tables:
-            owner = _table_owner_doc_id(ft, page_doc_id)
+            owner_idx = _table_owner_index(ft, page_subdoc_index)
+            owner_doc_id = page_doc_id.get(ft["pages"][0])
             verdict, reason = empty_table_verdict(ft)
             page_start, page_end = ft["pages"][0], ft["pages"][-1]
             if verdict == "DISCARD":
@@ -51,28 +59,33 @@ def build_artifact(pdf_path, source_pdf_name: str) -> dict:
                     "pages": ft["pages"],
                     "rule": "empty_table",
                     "detail": (
-                        f"doc_id={owner} table pp.{page_start}-{page_end}: {reason} "
+                        f"doc_id={owner_doc_id} table pp.{page_start}-{page_end}: {reason} "
                         f"(ncols_before_filter={ft['ncols_before_filter']}, "
                         f"ncols_after_filter={ft['ncols']}, dropped_cols={ft['dropped_cols']})"
                     ),
                 })
                 continue
-            table_counters[owner] += 1
-            tables_by_doc_id[owner].append({
-                "table_id": f"{owner}__t{table_counters[owner]:02d}",
+            table_counters[owner_idx] += 1
+            tables_by_index[owner_idx].append({
+                "table_id": f"{owner_doc_id}__t{table_counters[owner_idx]:02d}",
                 "page_start": page_start,
                 "page_end": page_end,
                 "rows": ft["rows"],
                 "bbox_by_page": {p: b for p, b in zip(ft["pages"], ft["bboxes"])},
             })
 
-        blocks_by_doc_id = defaultdict(list)
+        # Same instance-index grouping for blocks -- the actual bug this
+        # fixes: two subdocuments sharing a doc_id (AEI-QP-T-03B) previously
+        # ended up with byte-identical block lists, confirmed by direct
+        # inspection before this fix (each contained the other's heading).
+        blocks_by_index = defaultdict(list)
         block_counters = defaultdict(int)
         diagram_page_report = []
 
         for pno0 in range(page_count):
             pdf_page_no = pno0 + 1
             doc_id = page_doc_id.get(pdf_page_no)
+            subdoc_idx = page_subdoc_index.get(pdf_page_no)
             header = page_header.get(pdf_page_no)
             header_bbox = header["bbox"] if header else None
             table_bboxes = raw_tables_by_page.get(pdf_page_no, [])
@@ -104,9 +117,9 @@ def build_artifact(pdf_path, source_pdf_name: str) -> dict:
             if doc_id is None:
                 continue
             for b in page_blocks:
-                block_counters[doc_id] += 1
-                blocks_by_doc_id[doc_id].append({
-                    "block_id": f"{doc_id}__p{pdf_page_no:03d}_b{block_counters[doc_id]:03d}",
+                block_counters[subdoc_idx] += 1
+                blocks_by_index[subdoc_idx].append({
+                    "block_id": f"{doc_id}__p{pdf_page_no:03d}_b{block_counters[subdoc_idx]:03d}",
                     "page": pdf_page_no,
                     "bbox": b["bbox"],
                     "text": b["text"],
@@ -114,7 +127,7 @@ def build_artifact(pdf_path, source_pdf_name: str) -> dict:
                 })
 
         subdocuments = []
-        for sd in seg["subdocuments"]:
+        for i, sd in enumerate(seg["subdocuments"]):
             doc_id = sd["doc_id"]
             subdocuments.append({
                 "doc_id": doc_id,
@@ -129,8 +142,8 @@ def build_artifact(pdf_path, source_pdf_name: str) -> dict:
                 "approved_by": sd["approved_by"],
                 "reviewed_revised_by": sd["reviewed_revised_by"],
                 "reference_procedure": sd["reference_procedure"],
-                "blocks": blocks_by_doc_id.get(doc_id, []),
-                "tables": tables_by_doc_id.get(doc_id, []),
+                "blocks": blocks_by_index.get(i, []),
+                "tables": tables_by_index.get(i, []),
             })
 
         return {
@@ -143,6 +156,6 @@ def build_artifact(pdf_path, source_pdf_name: str) -> dict:
             "_table_stats": {
                 "total_stitched_tables": len(filtered_tables),
                 "discarded": sum(1 for e in removal_log if e["rule"] == "empty_table"),
-                "kept": sum(len(v) for v in tables_by_doc_id.values()),
+                "kept": sum(len(v) for v in tables_by_index.values()),
             },
         }
